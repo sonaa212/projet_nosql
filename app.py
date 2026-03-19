@@ -61,3 +61,76 @@ elif question == "Q5 - Genres disponibles":
     for i, g in enumerate(genres):
         cols[i % 4].write(f"- {g}")
 
+elif question == "Q6 - Film le plus rentable":
+    st.header("Q6 - Film avec le plus de revenus")
+    film = q6_highest_revenue_film(col)
+    st.metric("Film", film["title"])
+    st.metric("Revenu", f"${film['Revenue (Millions)']:.2f}M")
+    st.write(f"**Réalisateur :** {film['Director']} | **Année :** {film['year']}")
+
+elif question == "Q7 - Réalisateurs prolifiques":
+    st.header("Q7 - Réalisateurs avec plus de 5 films")
+    df = q7_directors_more_than_5(col)
+    if df.empty:
+        st.warning("Aucun réalisateur avec plus de 5 films.")
+    else:
+        st.dataframe(df)
+        fig, ax = plt.subplots()
+        ax.barh(df["Réalisateur"], df["Nombre de films"], color="steelblue")
+        st.pyplot(fig)
+
+elif question == "Q8 - Genre le plus rentable":
+    st.header("Q8 - Revenu moyen par genre")
+    df = q8_genre_most_revenue(col)
+    st.write(f"**Genre le plus rentable : {df.iloc[0]['Genre']}** (${df.iloc[0]['Revenu moyen (M$)']:.2f}M)")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.barh(df["Genre"], df["Revenu moyen (M$)"], color="steelblue")
+    ax.set_xlabel("Revenu moyen (M$)")
+    st.pyplot(fig)
+
+elif question == "Q9 - Top 3 par décennie":
+    st.header("Q9 - Top 3 films par décennie (Metascore)")
+    df = q9_top3_per_decade(col)
+    for decade in df["Décennie"].unique():
+        st.subheader(f"Décennie {decade}")
+        st.dataframe(df[df["Décennie"] == decade][["Titre", "Année", "Metascore"]].reset_index(drop=True))
+
+elif question == "Q10 - Film le plus long par genre":
+    st.header("Q10 - Film le plus long par genre")
+    df = q10_longest_film_per_genre(col)
+    st.dataframe(df)
+
+elif question == "Q11 - Vue MongoDB":
+    st.header("Q11 - Vue : Metascore > 80 ET Revenue > 50M")
+    if st.button("Créer la vue"):
+        q11_create_view(col)
+        st.success("Vue créée !")
+    df = q11_get_view(col)
+    if not df.empty:
+        st.dataframe(df)
+
+elif question == "Q12 - Corrélation Runtime/Revenue":
+    st.header("Q12 - Corrélation durée vs revenu")
+    result = q12_correlation(col)
+    df = result["df"]
+    corr = result["corr"]
+    st.metric("Coefficient de corrélation (Pearson)", corr)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.scatter(df["runtime"], df["revenue"], alpha=0.6)
+    slope, intercept, _, _, _ = stats.linregress(df["runtime"], df["revenue"])
+    x = np.linspace(df["runtime"].min(), df["runtime"].max(), 100)
+    ax.plot(x, slope * x + intercept, color="red", label=f"r = {corr}")
+    ax.set_xlabel("Durée (min)")
+    ax.set_ylabel("Revenu (M$)")
+    ax.legend()
+    st.pyplot(fig)
+
+elif question == "Q13 - Durée moyenne par décennie":
+    st.header("Q13 - Évolution durée moyenne par décennie")
+    df = q13_avg_runtime_per_decade(col)
+    st.dataframe(df)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(df["Décennie"], df["Durée moyenne (min)"], marker="o", color="steelblue")
+    ax.set_xlabel("Décennie")
+    ax.set_ylabel("Durée moyenne (min)")
+    st.pyplot(fig)
