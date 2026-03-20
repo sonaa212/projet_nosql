@@ -10,11 +10,19 @@ from neo4j_queries import *
 st.set_page_config(page_title="NoSQL - MongoDB & Neo4j", layout="wide")
 st.title("Exploration de la base Films")
 
-col = get_connection()
-driver = get_neo4j_connection()
+@st.cache_resource
+def get_mongo():
+    return get_connection()
+
+@st.cache_resource
+def get_neo4j():
+    return get_neo4j_connection()
+
+col = get_mongo()
+driver = get_neo4j()
 
 st.sidebar.title("Questions")
-section = st.sidebar.selectbox("Base de données", ["MongoDB (Q1-Q13)", "Neo4j (Q14-Q26)"])
+section = st.sidebar.selectbox("Base de données", ["MongoDB (Q1-Q13)", "Neo4j (Q14-Q26)", "Transversales (Q27-Q30)"])
 
 if section == "MongoDB (Q1-Q13)":
     question = st.sidebar.radio("Choisir une question", [
@@ -32,7 +40,7 @@ if section == "MongoDB (Q1-Q13)":
         "Q12 - Corrélation Runtime/Revenue",
         "Q13 - Durée moyenne par décennie",
     ])
-else:
+elif section == "Neo4j (Q14-Q26)":
     question = st.sidebar.radio("Choisir une question", [
         "Q14 - Acteur avec le plus de films",
         "Q15 - Acteurs avec Anne Hathaway",
@@ -48,26 +56,60 @@ else:
         "Q25 - Chemin le plus court",
         "Q26 - Communautés d'acteurs",
     ])
+else:
+    question = st.sidebar.radio("Choisir une question", [
+        "Q27 - Films genres communs, réalisateurs différents",
+        "Q28 - Recommandation par acteur",
+        "Q29 - Relations CONCURRENT",
+        "Q30 - Collaborations réalisateur-acteur",
+    ])
+
+@st.cache_data
+def cached_q1(): return q1_year_most_films(get_mongo())
+@st.cache_data
+def cached_q2(): return q2_films_after_1999(get_mongo())
+@st.cache_data
+def cached_q3(): return q3_avg_votes_2007(get_mongo())
+@st.cache_data
+def cached_q4(): return q4_films_per_year(get_mongo())
+@st.cache_data
+def cached_q5(): return q5_available_genres(get_mongo())
+@st.cache_data
+def cached_q6(): return q6_highest_revenue_film(get_mongo())
+@st.cache_data
+def cached_q7(): return q7_directors_more_than_5(get_mongo())
+@st.cache_data
+def cached_q8(): return q8_genre_most_revenue(get_mongo())
+@st.cache_data
+def cached_q9(): return q9_top3_per_decade(get_mongo())
+@st.cache_data
+def cached_q10(): return q10_longest_film_per_genre(get_mongo())
+@st.cache_data
+def cached_q11(): return q11_get_view(get_mongo())
+@st.cache_data
+def cached_q12(): return q12_correlation(get_mongo())
+@st.cache_data
+def cached_q13(): return q13_avg_runtime_per_decade(get_mongo())
 
 if question == "Q1 - Année record":
     st.header("Q1 - Année avec le plus de films")
-    result = q1_year_most_films(col)
+    result = cached_q1()
     st.metric("Année", result["_id"])
     st.metric("Nombre de films", result["count"])
 
 elif question == "Q2 - Films après 1999":
     st.header("Q2 - Films sortis après 1999")
-    count = q2_films_after_1999(col)
+    count = cached_q2()
     st.metric("Nombre de films", count)
 
 elif question == "Q3 - Votes moyens 2007":
     st.header("Q3 - Moyenne des votes en 2007")
-    avg = q3_avg_votes_2007(col)
+    avg = cached_q3()
     st.metric("Moyenne des votes", f"{avg:,.0f}")
 
 elif question == "Q4 - Histogramme par année":
     st.header("Q4 - Nombre de films par année")
-    df = q4_films_per_year(col)
+    df = cached_q4()
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.bar(df["Année"], df["Nombre de films"], color="steelblue")
     ax.set_xlabel("Année")
@@ -77,7 +119,7 @@ elif question == "Q4 - Histogramme par année":
 
 elif question == "Q5 - Genres disponibles":
     st.header("Q5 - Genres disponibles")
-    genres = q5_available_genres(col)
+    genres = cached_q5()
     st.write(f"**{len(genres)} genres trouvés :**")
     cols = st.columns(4)
     for i, g in enumerate(genres):
@@ -85,14 +127,14 @@ elif question == "Q5 - Genres disponibles":
 
 elif question == "Q6 - Film le plus rentable":
     st.header("Q6 - Film avec le plus de revenus")
-    film = q6_highest_revenue_film(col)
+    film = cached_q6()
     st.metric("Film", film["title"])
     st.metric("Revenu", f"${film['Revenue (Millions)']:.2f}M")
     st.write(f"**Réalisateur :** {film['Director']} | **Année :** {film['year']}")
 
 elif question == "Q7 - Réalisateurs prolifiques":
     st.header("Q7 - Réalisateurs avec plus de 5 films")
-    df = q7_directors_more_than_5(col)
+    df = cached_q7()
     if df.empty:
         st.warning("Aucun réalisateur avec plus de 5 films.")
     else:
@@ -103,7 +145,7 @@ elif question == "Q7 - Réalisateurs prolifiques":
 
 elif question == "Q8 - Genre le plus rentable":
     st.header("Q8 - Revenu moyen par genre")
-    df = q8_genre_most_revenue(col)
+    df = cached_q8()
     st.write(f"**Genre le plus rentable : {df.iloc[0]['Genre']}** (${df.iloc[0]['Revenu moyen (M$)']:.2f}M)")
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.barh(df["Genre"], df["Revenu moyen (M$)"], color="steelblue")
@@ -112,28 +154,27 @@ elif question == "Q8 - Genre le plus rentable":
 
 elif question == "Q9 - Top 3 par décennie":
     st.header("Q9 - Top 3 films par décennie (Metascore)")
-    df = q9_top3_per_decade(col)
+    df = cached_q9()
     for decade in df["Décennie"].unique():
         st.subheader(f"Décennie {decade}")
         st.dataframe(df[df["Décennie"] == decade][["Titre", "Année", "Metascore"]].reset_index(drop=True))
 
 elif question == "Q10 - Film le plus long par genre":
     st.header("Q10 - Film le plus long par genre")
-    df = q10_longest_film_per_genre(col)
-    st.dataframe(df)
+    st.dataframe(cached_q10())
 
 elif question == "Q11 - Vue MongoDB":
     st.header("Q11 - Vue : Metascore > 80 ET Revenue > 50M")
     if st.button("Créer la vue"):
         q11_create_view(col)
         st.success("Vue créée !")
-    df = q11_get_view(col)
+    df = cached_q11()
     if not df.empty:
         st.dataframe(df)
 
 elif question == "Q12 - Corrélation Runtime/Revenue":
     st.header("Q12 - Corrélation durée vs revenu")
-    result = q12_correlation(col)
+    result = cached_q12()
     df = result["df"]
     corr = result["corr"]
     st.metric("Coefficient de corrélation (Pearson)", corr)
@@ -149,7 +190,7 @@ elif question == "Q12 - Corrélation Runtime/Revenue":
 
 elif question == "Q13 - Durée moyenne par décennie":
     st.header("Q13 - Évolution durée moyenne par décennie")
-    df = q13_avg_runtime_per_decade(col)
+    df = cached_q13()
     st.dataframe(df)
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(df["Décennie"], df["Durée moyenne (min)"], marker="o", color="steelblue")
@@ -262,3 +303,43 @@ elif question == "Q26 - Communautés d'acteurs":
     df = q26_actor_communities(driver)
     if not df.empty:
         st.dataframe(df)
+
+# ── QUESTIONS TRANSVERSALES ───────────────────────────────────────────────────
+
+elif question == "Q27 - Films genres communs, réalisateurs différents":
+    st.header("Q27 - Films avec genres en commun mais réalisateurs différents")
+    df = q27_common_genre_diff_director(driver)
+    if not df.empty:
+        st.dataframe(df)
+    else:
+        st.warning("Aucun résultat trouvé.")
+
+elif question == "Q28 - Recommandation par acteur":
+    st.header("Q28 - Recommander des films selon les préférences d'un acteur")
+    actor_name = st.text_input("Nom de l'acteur", value="Tom Hanks")
+    if actor_name:
+        df = q28_recommend_by_actor(driver, actor_name)
+        if df.empty:
+            st.warning(f"Aucune recommandation trouvée pour {actor_name}.")
+        else:
+            st.write(f"Films recommandés pour **{actor_name}** :")
+            st.dataframe(df)
+
+elif question == "Q29 - Relations CONCURRENT":
+    st.header("Q29 - Créer des relations CONCURRENT entre réalisateurs")
+    st.write("Relie les réalisateurs ayant fait des films du même genre la même année.")
+    if st.button("Créer les relations CONCURRENT"):
+        r = q29_create_concurrent_relations(driver)
+        st.success(f"Relations CONCURRENT créées !")
+
+elif question == "Q30 - Collaborations réalisateur-acteur":
+    st.header("Q30 - Collaborations fréquentes réalisateur-acteur")
+    df = q30_director_actor_collabs(driver)
+    if not df.empty:
+        st.dataframe(df)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        labels = [f"{r} / {a}" for r, a in zip(df["Réalisateur"], df["Acteur"])]
+        ax.barh(labels, df["Collaborations"], color="steelblue")
+        ax.set_xlabel("Nombre de collaborations")
+        ax.set_title("Collaborations les plus fréquentes")
+        st.pyplot(fig)

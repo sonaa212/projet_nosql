@@ -149,7 +149,7 @@ def q25_shortest_path(driver, actor1="Tom Hanks", actor2="Scarlett Johansson"):
                 CASE
                     WHEN n:Actor THEN n.name
                     WHEN n:Film  THEN n.title
-                    ELSE toString(n)
+                    ELSE ""
                 END
             ] AS chemin, length(path) AS distance
         """, actor1=actor1, actor2=actor2)
@@ -166,4 +166,78 @@ def q26_actor_communities(driver):
             LIMIT 10
         """)
         rows = [{"Acteur 1": r["acteur1"], "Acteur 2": r["acteur2"], "Films en commun": r["films_en_commun"]} for r in result]
+        return pd.DataFrame(rows)
+
+# Q27 - Films avec genres en commun mais réalisateurs différents
+def q27_common_genre_diff_director(driver):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (f1:Film), (f2:Film)
+            WHERE f1.title < f2.title
+              AND f1.director <> f2.director
+              AND f1.genre IS NOT NULL AND f2.genre IS NOT NULL
+              AND ANY(g IN split(f1.genre, ",")
+                  WHERE trim(g) IN [g2 IN split(f2.genre, ",") | trim(g2)])
+            RETURN f1.title AS film1, f1.director AS realisateur1,
+                   f2.title AS film2, f2.director AS realisateur2
+            LIMIT 20
+        """)
+        rows = [{"Film 1": r["film1"], "Réalisateur 1": r["realisateur1"],
+                 "Film 2": r["film2"], "Réalisateur 2": r["realisateur2"]} for r in result]
+        return pd.DataFrame(rows)
+
+# Q28 - Recommander des films à un utilisateur selon les genres préférés d'un acteur
+def q28_recommend_by_actor(driver, actor_name):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (a:Actor {name: $actor_name})-[:A_JOUE]->(f:Film)
+            WHERE f.genre IS NOT NULL
+            WITH a, collect(DISTINCT trim(split(f.genre, ",")[0])) AS genres_aimes
+            MATCH (rec:Film)
+            WHERE ANY(g IN genres_aimes WHERE rec.genre CONTAINS g)
+              AND NOT (a)-[:A_JOUE]->(rec)
+              AND rec.revenue > 0
+            RETURN rec.title AS film, rec.genre AS genre,
+                   rec.rating AS note, rec.revenue AS revenu
+            ORDER BY rec.revenue DESC
+            LIMIT 5
+        """, actor_name=actor_name)
+        rows = [{"Film": r["film"], "Genre": r["genre"],
+                 "Note": r["note"], "Revenu (M$)": r["revenu"]} for r in result]
+        return pd.DataFrame(rows)
+
+# Q29 - Créer les relations CONCURRENT entre réalisateurs (même genre, même année)
+def q29_create_concurrent_relations(driver):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (r1:Realisateur)-[:A_REALISE]->(f1:Film)
+            MATCH (r2:Realisateur)-[:A_REALISE]->(f2:Film)
+            WHERE r1 <> r2
+              AND f1.year = f2.year
+              AND f1.genre IS NOT NULL AND f2.genre IS NOT NULL
+              AND ANY(g IN split(f1.genre, ",")
+                  WHERE trim(g) IN [g2 IN split(f2.genre, ",") | trim(g2)])
+            MERGE (r1)-[:CONCURRENT {annee: f1.year}]->(r2)
+            RETURN count(*) AS relations_creees
+        """)
+        return result.single()
+
+# Q30 - Collaborations fréquentes réalisateur-acteur et leur succès
+def q30_director_actor_collabs(driver):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (r:Realisateur)-[:A_REALISE]->(f:Film)<-[:A_JOUE]-(a:Actor)
+            WITH r, a, count(f) AS collaborations,
+                 round(avg(f.revenue)) AS revenu_moyen,
+                 round(avg(f.rating))  AS note_moyenne
+            WHERE collaborations > 1
+            RETURN r.name AS realisateur, a.name AS acteur,
+                   collaborations, revenu_moyen, note_moyenne
+            ORDER BY collaborations DESC
+            LIMIT 10
+        """)
+        rows = [{"Réalisateur": r["realisateur"], "Acteur": r["acteur"],
+                 "Collaborations": r["collaborations"],
+                 "Revenu moyen (M$)": r["revenu_moyen"],
+                 "Note moyenne": r["note_moyenne"]} for r in result]
         return pd.DataFrame(rows)
