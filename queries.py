@@ -75,6 +75,8 @@ def q8_genre_most_revenue(col):
     df["Revenu moyen (M$)"] = df["Revenu moyen (M$)"].round(2)
     return df
 
+# 2016 / 10 = 201.6 → floor = 201 → × 10 = 2010
+# 1999 / 10 = 199.9 → floor = 199 → × 10 = 1990
 def q9_top3_per_decade(col):
     pipeline = [
         {"$match": {"Metascore": {"$type": "int"}}},
