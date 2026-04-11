@@ -155,6 +155,39 @@ def q25_shortest_path(driver, actor1="Tom Hanks", actor2="Scarlett Johansson"):
         """, actor1=actor1, actor2=actor2)
         return result.single()
 
+# Q15 - Données réseau PyVis (anne, film, co-acteur)
+def q15_network_data(driver):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (anne:Actor {name: "Anne Hathaway"})-[:A_JOUE]->(f:Film)<-[:A_JOUE]-(co:Actor)
+            WHERE co.name <> "Anne Hathaway"
+            RETURN anne.name AS anne, f.title AS film, co.name AS co_actor
+        """)
+        return [{"anne": r["anne"], "film": r["film"], "co_actor": r["co_actor"]} for r in result]
+
+# Q21 - Données réseau film-film pour PyVis
+def q21_network_data(driver):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (f1:Film)<-[:A_JOUE]-(a:Actor)-[:A_JOUE]->(f2:Film)
+            WHERE f1.title < f2.title
+            WITH f1, f2, count(DISTINCT a) AS acteurs_communs
+            ORDER BY acteurs_communs DESC
+            LIMIT 15
+            RETURN f1.title AS film1, f2.title AS film2, acteurs_communs
+        """)
+        return [{"film1": r["film1"], "film2": r["film2"], "acteurs_communs": r["acteurs_communs"]} for r in result]
+
+# Q24 - Afficher le réseau INFLUENCE_PAR
+def q24_influence_network(driver):
+    with driver.session(database=DATABASE) as session:
+        result = session.run("""
+            MATCH (r1:Realisateur)-[:INFLUENCE_PAR]->(r2:Realisateur)
+            RETURN r1.name AS source, r2.name AS target
+            LIMIT 30
+        """)
+        return [{"source": r["source"], "target": r["target"]} for r in result]
+
 # Q26 - Paires d'acteurs qui ont le plus collaboré (approximation communautés)
 def q26_actor_communities(driver):
     with driver.session(database=DATABASE) as session:
